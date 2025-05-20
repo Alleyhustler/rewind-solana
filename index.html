@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Time Machine | $REWIND</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.70.0/lib/index.iife.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #0a0a0a;
+            color: #e2e8f0;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, #9945FF 0%, #14F195 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .glow {
+            box-shadow: 0 0 15px rgba(20, 241, 149, 0.3);
+        }
+        
+        .chart-container {
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(10px);
+        }
+        
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+        
+        .rules-container {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .rules-container.open {
+            max-height: 500px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="border-b border-gray-800 py-4 px-6">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <!-- Replace this with your logo -->
+                <img src="image s.png" alt="Solana Rewind Logo" class="h-24 w-24">
+                <h1 class="text-2xl font-bold gradient-text">Rewind Solana</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="connectWallet" class="bg-gray-800 hover:bg-gray-700 text-sm px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                    <span>Connect Wallet</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </button>
+                <div class="hidden md:flex items-center space-x-2 bg-gray-900 px-3 py-2 rounded-lg">
+                    <span class="text-xs text-gray-400">BALANCE</span>
+                    <span id="tokenBalance" class="font-bold text-green-400">100,000</span>
+                    <span class="text-green-400 font-bold">$REWIND</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Panel - Game Info -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- How This Works Section -->
+                <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                    <button id="rulesToggle" class="w-full flex justify-between items-center p-6 text-left">
+                        <h3 class="font-bold">How This Works</h3>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transform transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div id="rulesContent" class="rules-container">
+                        <div class="px-6 pb-6 space-y-4">
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="h-2 w-2 bg-green-500 rounded-full"></div>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium">Time Travel Trading</h4>
+                                    <p class="text-sm text-gray-400">Each round shows a real historical SOL price chart (without numbers) from a random past date.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="h-2 w-2 bg-green-500 rounded-full"></div>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium">Place Your Bet</h4>
+                                    <p class="text-sm text-gray-400">Guess what the SOL price was at the marked point in history using your $REWIND tokens.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="h-2 w-2 bg-green-500 rounded-full"></div>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium">Rewards & Multipliers</h4>
+                                    <p class="text-sm text-gray-400">The closer your guess to the actual price, the higher your multiplier (up to 3x).</p>
+                                    <p class="text-xs text-gray-500 mt-1">Formula: Multiplier = max(0, 3 - (percentage_diff / 25))</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="h-2 w-2 bg-green-500 rounded-full"></div>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium">Risk & Burn</h4>
+                                    <p class="text-sm text-gray-400">Poor guesses will burn some of your bet. The worse your guess, the more you lose.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3">
+                                <div class="flex-shrink-0 mt-1">
+                                    <div class="h-2 w-2 bg-green-500 rounded-full"></div>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium">15 Minute Rounds</h4>
+                                    <p class="text-sm text-gray-400">New charts appear every 15 minutes. All players compete simultaneously.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <h2 class="text-xl font-bold mb-4">Game Round #<span id="roundNumber">42</span></h2>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-sm text-gray-400 mb-1">
+                                <span>Time Remaining</span>
+                                <span id="timeRemaining">14:32</span>
+                            </div>
+                            <div class="w-full bg-gray-800 rounded-full h-2">
+                                <div id="progressBar" class="bg-green-500 h-2 rounded-full" style="width: 97%"></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-800 p-4 rounded-lg">
+                                <div class="text-xs text-gray-400">Players</div>
+                                <div class="text-2xl font-bold" id="playerCount">6</div>
+                            </div>
+                            <div class="bg-gray-800 p-4 rounded-lg">
+                                <div class="text-xs text-gray-400">Total Bet</div>
+                                <div class="text-2xl font-bold" id="totalBet">213,332</div>
+                                <div class="text-xs text-green-400">$REWIND</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Betting Panel -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <h3 class="font-bold mb-4">Your Bet</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-2">Bet Amount ($REWIND)</label>
+                            <div class="relative">
+                                <input id="betAmount" type="number" min="1000" max="100000" value="5000" 
+                                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+                                <div class="absolute right-3 top-3 flex space-x-2">
+                                    <button class="bet-quick-amount text-xs px-2 py-1 bg-gray-700 rounded hover:bg-gray-600" data-amount="1000">1K</button>
+                                    <button class="bet-quick-amount text-xs px-2 py-1 bg-gray-700 rounded hover:bg-gray-600" data-amount="5000">5K</button>
+                                    <button class="bet-quick-amount text-xs px-2 py-1 bg-gray-700 rounded hover:bg-gray-600" data-amount="10000">10K</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-2">SOL Price Guess ($)</label>
+                            <input id="priceGuess" type="number" step="0.01" min="0.01" 
+                                class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <button id="placeBet" class="w-full bg-gradient-to-r from-purple-600 to-green-500 hover:from-purple-700 hover:to-green-600 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02]">
+                            Place Bet
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Recent Results -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <h3 class="font-bold mb-4">Recent Results</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center py-2 border-b border-gray-800">
+                            <div class="text-sm">TBA</div>
+                            <div class="text-green-400 font-mono">SOL: $24.56</div>
+                            <div class="text-xs bg-gray-800 px-2 py-1 rounded">+2.4x</div>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-800">
+                            <div class="text-sm">TBA</div>
+                            <div class="text-red-400 font-mono">SOL: $142.19</div>
+                            <div class="text-xs bg-gray-800 px-2 py-1 rounded">-0.8x</div>
+                        </div>
+                        <div class="flex justify-between items-center py-2">
+                            <div class="text-sm">TBA</div>
+                            <div class="text-green-400 font-mono">SOL: $56.32</div>
+                            <div class="text-xs bg-gray-800 px-2 py-1 rounded">+1.7x</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel - Chart -->
+            <div class="lg:col-span-2">
+                <div class="chart-container rounded-xl border border-gray-800 overflow-hidden">
+                    <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                        <h3 class="font-bold">Historical SOL Price Chart</h3>
+                        <div class="text-xs text-gray-400">Date: <span id="chartDate">YYYY-MM-DD</span></div>
+                    </div>
+                    <div class="p-4">
+                        <canvas id="priceChart" height="400"></canvas>
+                    </div>
+                </div>
+
+                <!-- Game Status -->
+                <div id="gameStatus" class="mt-6 bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold mb-2">Round in Progress</div>
+                        <p class="text-gray-400 mb-6">Place your guess for the SOL price at the marked point on the chart.</p>
+                        <div class="inline-flex items-center px-4 py-2 bg-gray-800 rounded-full">
+                            <div class="w-2 h-2 bg-green-500 rounded-full mr-2 pulse"></div>
+                            <span class="text-sm">LIVE</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results (Hidden by default) -->
+                <div id="resultsContainer" class="mt-6 hidden">
+                    <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                        <div class="text-center mb-6">
+                            <div class="text-2xl font-bold mb-2">Round Results</div>
+                            <div class="text-lg">
+                                Actual SOL Price: <span id="actualPrice" class="font-mono text-green-400">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div class="bg-gray-800 p-4 rounded-lg">
+                                <div class="text-sm text-gray-400 mb-1">Your Guess</div>
+                                <div id="userGuess" class="text-xl font-mono">$0.00</div>
+                                <div id="guessAccuracy" class="text-sm mt-1">0.00% off</div>
+                            </div>
+                            <div class="bg-gray-800 p-4 rounded-lg">
+                                <div class="text-sm text-gray-400 mb-1">Multiplier</div>
+                                <div id="multiplier" class="text-xl font-mono">0.00x</div>
+                                <div id="payout" class="text-sm mt-1">+0 $REWIND</div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <button id="nextRound" class="bg-gradient-to-r from-purple-600 to-green-500 hover:from-purple-700 hover:to-green-600 text-white font-bold py-3 px-6 rounded-lg transition-all">
+                                Wait for Next Round
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-800 py-6 px-6">
+        <div class="container mx-auto">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center space-x-4 mb-4 md:mb-0">
+                    <span class="text-sm text-gray-400">© 2025 Solana Rewind</span>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-400 hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-twitter">
+                            <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+                        </svg>
+                    </a>
+
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Game state
+        const gameState = {
+            roundActive: true,
+            timeRemaining: 15 * 60, // 15 minutes in seconds
+            userBalance: 100000,
+            currentBet: 0,
+            currentGuess: 0,
+            chartData: null,
+            actualPrice: 0,
+            roundNumber: 42,
+            playerCount: 1429,
+            totalBet: 4200000,
+            chartDate: "2021-09-09"
+        };
+
+        // DOM Elements
+        const elements = {
+            connectWallet: document.getElementById('connectWallet'),
+            tokenBalance: document.getElementById('tokenBalance'),
+            roundNumber: document.getElementById('roundNumber'),
+            timeRemaining: document.getElementById('timeRemaining'),
+            progressBar: document.getElementById('progressBar'),
+            playerCount: document.getElementById('playerCount'),
+            totalBet: document.getElementById('totalBet'),
+            betAmount: document.getElementById('betAmount'),
+            priceGuess: document.getElementById('priceGuess'),
+            placeBet: document.getElementById('placeBet'),
+            chartDate: document.getElementById('chartDate'),
+            gameStatus: document.getElementById('gameStatus'),
+            resultsContainer: document.getElementById('resultsContainer'),
+            actualPrice: document.getElementById('actualPrice'),
+            userGuess: document.getElementById('userGuess'),
+            guessAccuracy: document.getElementById('guessAccuracy'),
+            multiplier: document.getElementById('multiplier'),
+            payout: document.getElementById('payout'),
+            nextRound: document.getElementById('nextRound'),
+            rulesToggle: document.getElementById('rulesToggle'),
+            rulesContent: document.getElementById('rulesContent')
+        };
+
+        // Initialize Chart
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        let priceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 30}, (_, i) => i + 1),
+                datasets: [{
+                    label: 'SOL Price',
+                    data: [],
+                    borderColor: '#14F195',
+                    backgroundColor: 'rgba(20, 241, 149, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: true,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                },
+                scales: {
+                    x: {
+                        display: false,
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        display: false,
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+
+        // Generate random chart data
+        function generateChartData() {
+            const basePrice = Math.random() * 200 + 5; // Random base price between 5 and 205
+            const volatility = Math.random() * 0.2 + 0.05; // 5-25% volatility
+            const trend = Math.random() * 0.2 - 0.1; // -10% to +10% trend
+            
+            const data = [];
+            let currentPrice = basePrice;
+            
+            for (let i = 0; i < 30; i++) {
+                // Add random movement with trend
+                currentPrice = currentPrice * (1 + (Math.random() * volatility * 2 - volatility) + trend/30);
+                data.push(currentPrice);
+            }
+            
+            // Store the actual price (last data point)
+            gameState.actualPrice = parseFloat(data[data.length - 1].toFixed(2));
+            gameState.chartData = data;
+            
+            // Update chart
+            priceChart.data.datasets[0].data = data;
+            priceChart.update();
+            
+            // Set random historical date (within last 3 years)
+            const randomDate = new Date();
+            randomDate.setDate(randomDate.getDate() - Math.floor(Math.random() * 365 * 3));
+            gameState.chartDate = randomDate.toISOString().split('T')[0];
+            elements.chartDate.textContent = gameState.chartDate;
+        }
+
+        // Timer function
+        function updateTimer() {
+            if (gameState.timeRemaining <= 0) {
+                endRound();
+                return;
+            }
+            
+            gameState.timeRemaining--;
+            
+            const minutes = Math.floor(gameState.timeRemaining / 60);
+            const seconds = gameState.timeRemaining % 60;
+            
+            elements.timeRemaining.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Update progress bar
+            const percentage = (gameState.timeRemaining / (15 * 60)) * 100;
+            elements.progressBar.style.width = `${percentage}%`;
+            
+            // Change color when under 1 minute
+            if (gameState.timeRemaining < 60) {
+                elements.progressBar.classList.remove('bg-green-500');
+                elements.progressBar.classList.add('bg-red-500');
+            }
+        }
+
+        // End round and show results
+        function endRound() {
+            gameState.roundActive = false;
+            
+            // Show results container
+            elements.gameStatus.classList.add('hidden');
+            elements.resultsContainer.classList.remove('hidden');
+            
+            // Update results
+            elements.actualPrice.textContent = `$${gameState.actualPrice.toFixed(2)}`;
+            
+            if (gameState.currentGuess > 0) {
+                const difference = Math.abs(gameState.currentGuess - gameState.actualPrice);
+                const percentageDiff = (difference / gameState.actualPrice) * 100;
+                const multiplier = Math.max(0, 3 - (percentageDiff / 25)); // Max 3x, scales with accuracy
+                
+                elements.userGuess.textContent = `$${gameState.currentGuess.toFixed(2)}`;
+                elements.guessAccuracy.textContent = `${percentageDiff.toFixed(2)}% off`;
+                elements.multiplier.textContent = `${multiplier.toFixed(2)}x`;
+                
+                const payout = Math.floor(gameState.currentBet * multiplier);
+                elements.payout.textContent = `+${payout.toLocaleString()} $REWIND`;
+                
+                // Update balance
+                gameState.userBalance += payout - gameState.currentBet;
+                updateBalance();
+            } else {
+                elements.userGuess.textContent = "No bet placed";
+                elements.guessAccuracy.textContent = "";
+                elements.multiplier.textContent = "0x";
+                elements.payout.textContent = "+0 $REWIND";
+            }
+            
+            // Start next round after delay
+            setTimeout(startNewRound, 10000);
+        }
+
+        // Start a new round
+        function startNewRound() {
+            gameState.roundActive = true;
+            gameState.timeRemaining = 15 * 60;
+            gameState.roundNumber++;
+            gameState.currentBet = 0;
+            gameState.currentGuess = 0;
+            gameState.playerCount = Math.floor(1000 + Math.random() * 1000);
+            gameState.totalBet = Math.floor(1000000 + Math.random() * 5000000);
+            
+            // Update UI
+            elements.roundNumber.textContent = gameState.roundNumber;
+            elements.playerCount.textContent = gameState.playerCount.toLocaleString();
+            elements.totalBet.textContent = `${(gameState.totalBet / 1000000).toFixed(1)}M`;
+            elements.progressBar.classList.remove('bg-red-500');
+            elements.progressBar.classList.add('bg-green-500');
+            
+            // Reset UI
+            elements.gameStatus.classList.remove('hidden');
+            elements.resultsContainer.classList.add('hidden');
+            elements.betAmount.value = "5000";
+            elements.priceGuess.value = "";
+            
+            // Generate new chart
+            generateChartData();
+        }
+
+        // Update balance display
+        function updateBalance() {
+            elements.tokenBalance.textContent = gameState.userBalance.toLocaleString();
+        }
+
+        // Place bet
+        function placeBet() {
+            const betAmount = parseInt(elements.betAmount.value);
+            const priceGuess = parseFloat(elements.priceGuess.value);
+            
+            if (isNaN(betAmount) || betAmount < 1000 || betAmount > gameState.userBalance) {
+                alert("Please enter a valid bet amount (min 1,000 $REWIND)");
+                return;
+            }
+            
+            if (isNaN(priceGuess) || priceGuess <= 0) {
+                alert("Please enter a valid SOL price guess");
+                return;
+            }
+            
+            gameState.currentBet = betAmount;
+            gameState.currentGuess = priceGuess;
+            gameState.userBalance -= betAmount;
+            updateBalance();
+            
+            alert(`Bet placed: ${betAmount.toLocaleString()} $REWIND on SOL at $${priceGuess.toFixed(2)}`);
+        }
+
+        // Toggle rules visibility
+        function toggleRules() {
+            elements.rulesContent.classList.toggle('open');
+            elements.rulesToggle.querySelector('svg').classList.toggle('rotate-180');
+        }
+
+        // Initialize game
+        function initGame() {
+            generateChartData();
+            updateBalance();
+            
+            // Start timer
+            setInterval(updateTimer, 1000);
+            
+            // Event listeners
+            elements.placeBet.addEventListener('click', placeBet);
+            elements.nextRound.addEventListener('click', startNewRound);
+            elements.rulesToggle.addEventListener('click', toggleRules);
+            
+            // Quick bet amount buttons
+            document.querySelectorAll('.bet-quick-amount').forEach(button => {
+                button.addEventListener('click', () => {
+                    elements.betAmount.value = button.dataset.amount;
+                });
+            });
+            
+            // Wallet connection mock
+            elements.connectWallet.addEventListener('click', () => {
+                alert("Wallet connection would be implemented with Phantom or other Solana wallet");
+            });
+        }
+
+        // Start the game when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
