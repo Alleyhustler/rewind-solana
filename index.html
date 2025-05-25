@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@solana/web3.js@1.70.0/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@phantom-labs/inject@0.2.0/dist/inject-inline.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -55,6 +56,63 @@
         .rules-container.open {
             max-height: 500px;
         }
+        
+        .wallet-adapter-button {
+            background-color: #1f2937 !important;
+            color: white !important;
+            border-radius: 0.5rem !important;
+            padding: 0.5rem 1rem !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.875rem !important;
+            line-height: 1.25rem !important;
+            transition: all 0.2s !important;
+        }
+        
+        .wallet-adapter-button:hover {
+            background-color: #374151 !important;
+        }
+        
+        .wallet-adapter-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .wallet-adapter-dropdown-list {
+            position: absolute;
+            z-index: 99;
+            right: 0;
+            top: 100%;
+            min-width: 200px;
+            padding: 0.5rem;
+            margin: 0.5rem 0 0;
+            background-color: #1f2937;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .wallet-adapter-dropdown-list-item {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 0.25rem;
+        }
+        
+        .wallet-adapter-dropdown-list-item:hover {
+            background-color: #374151;
+        }
+        
+        .connected-wallet {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: #1f2937;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+        }
+        
+        .wallet-address {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -67,12 +125,14 @@
                 <h1 class="text-2xl font-bold gradient-text">Rewind Solana</h1>
             </div>
             <div class="flex items-center space-x-4">
-                <button id="connectWallet" class="bg-gray-800 hover:bg-gray-700 text-sm px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
-                    <span>Connect Wallet</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                </button>
+                <div id="walletContainer">
+                    <button id="connectWallet" class="bg-gray-800 hover:bg-gray-700 text-sm px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                        <span>Connect Wallet</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </button>
+                </div>
                 <div class="hidden md:flex items-center space-x-2 bg-gray-900 px-3 py-2 rounded-lg">
                     <span class="text-xs text-gray-400">BALANCE</span>
                     <span id="tokenBalance" class="font-bold text-green-400">100,000</span>
@@ -294,7 +354,6 @@
                             <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
                         </svg>
                     </a>
-
                 </div>
             </div>
         </div>
@@ -313,12 +372,15 @@
             roundNumber: 42,
             playerCount: 1429,
             totalBet: 4200000,
-            chartDate: "2021-09-09"
+            chartDate: "2021-09-09",
+            walletConnected: false,
+            publicKey: null
         };
 
         // DOM Elements
         const elements = {
             connectWallet: document.getElementById('connectWallet'),
+            walletContainer: document.getElementById('walletContainer'),
             tokenBalance: document.getElementById('tokenBalance'),
             roundNumber: document.getElementById('roundNumber'),
             timeRemaining: document.getElementById('timeRemaining'),
@@ -516,6 +578,11 @@
 
         // Place bet
         function placeBet() {
+            if (!gameState.walletConnected) {
+                alert("Please connect your wallet first");
+                return;
+            }
+            
             const betAmount = parseInt(elements.betAmount.value);
             const priceGuess = parseFloat(elements.priceGuess.value);
             
@@ -543,10 +610,77 @@
             elements.rulesToggle.querySelector('svg').classList.toggle('rotate-180');
         }
 
+        // Initialize wallet connection
+        async function initWallet() {
+            // Check if Phantom is installed
+            if (window.solana && window.solana.isPhantom) {
+                try {
+                    // Connect to Phantom wallet
+                    const response = await window.solana.connect();
+                    gameState.publicKey = response.publicKey.toString();
+                    gameState.walletConnected = true;
+                    
+                    // Update UI to show connected wallet
+                    updateWalletUI();
+                    
+                    console.log("Connected to Phantom wallet:", gameState.publicKey);
+                } catch (err) {
+                    console.error("Wallet connection error:", err);
+                }
+            } else {
+                // Phantom not installed
+                alert("Phantom wallet not detected. Please install Phantom from https://phantom.app/");
+            }
+        }
+
+        // Disconnect wallet
+        function disconnectWallet() {
+            gameState.walletConnected = false;
+            gameState.publicKey = null;
+            updateWalletUI();
+        }
+
+        // Update wallet UI based on connection state
+        function updateWalletUI() {
+            if (gameState.walletConnected) {
+                // Create connected wallet UI
+                const walletAddress = gameState.publicKey;
+                const shortAddress = `${walletAddress.substring(0, 4)}...${walletAddress.substring(walletAddress.length - 4)}`;
+                
+                elements.walletContainer.innerHTML = `
+                    <div class="wallet-adapter-dropdown">
+                        <div class="connected-wallet">
+                            <span class="wallet-address">${shortAddress}</span>
+                            <button id="disconnectWallet" class="text-xs text-gray-400 hover:text-white">
+                                Disconnect
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Add disconnect event listener
+                document.getElementById('disconnectWallet').addEventListener('click', disconnectWallet);
+            } else {
+                // Show connect button
+                elements.walletContainer.innerHTML = `
+                    <button id="connectWallet" class="bg-gray-800 hover:bg-gray-700 text-sm px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                        <span>Connect Wallet</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </button>
+                `;
+                
+                // Add connect event listener
+                document.getElementById('connectWallet').addEventListener('click', initWallet);
+            }
+        }
+
         // Initialize game
         function initGame() {
             generateChartData();
             updateBalance();
+            updateWalletUI();
             
             // Start timer
             setInterval(updateTimer, 1000);
@@ -561,11 +695,6 @@
                 button.addEventListener('click', () => {
                     elements.betAmount.value = button.dataset.amount;
                 });
-            });
-            
-            // Wallet connection mock
-            elements.connectWallet.addEventListener('click', () => {
-                alert("Wallet connection would be implemented with Phantom or other Solana wallet");
             });
         }
 
